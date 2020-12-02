@@ -111,7 +111,7 @@ Options:
 FILTERS:
 
         A filter is a collection of semicolon-separated expressions that are
-    be tested against the result of each request. When used, only the requests 
+    tested against the result of each request. When used, only the requests 
     matching with at least one the filters will be displayed. The filters can 
     contain basic comparissions and even Perl regular expressions. Any number of
     expressions can be combined using the logic operators 'or' and 'and' to form
