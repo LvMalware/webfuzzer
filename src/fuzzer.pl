@@ -61,7 +61,7 @@ sub fuzzer_loop
             
             if ($json)
             {
-                my $result = json_encode({
+                my $result = to_json({
                     status   => $status,
                     length   => $length,
                     reason   => $reason,
