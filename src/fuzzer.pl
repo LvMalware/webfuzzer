@@ -97,6 +97,7 @@ Options:
     -m, --methods           A comma-separated list of HTTP methods to request
     -u, --useragent         A User-Agent string (default: fuzzer.pl/0.1)
     -d, --delay             Interval in seconds to wait between requests
+    -j, --json              Print each result as a JSON
     -w, --wordlist          The wordlist of paths to request
     -H, --headers           Define a header to be sent
     -p, --payload           Send some custom data to the server
