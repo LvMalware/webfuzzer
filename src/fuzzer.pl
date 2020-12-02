@@ -84,7 +84,7 @@ sub help
 {
     print <<HELP;
 
-fuzzer.pl - A multi-threaded web fuzzer written 100\% in Perl
+fuzzer.pl - A multi-threaded web fuzzer written in Perl
 
 Usage: fuzzer.pl [option(s)] -w <wordlist> <url>
 
