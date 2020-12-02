@@ -42,12 +42,13 @@ sub fuzzer_loop
             if ($filter)
             {
                 my $match = 0;
-                #filter format example: length>0 && status==200;status==301
+                #filter format example: length>0 and status=200;status == 301
                 #params: length, status, content, url
                 for my $rule (split /;/, $filter)
                 {
-                    
-                    $rule =~ s/$_/\$$_/ for qw(length status content url);
+                    $rule =~ s/\bor\b/\|\|/;
+                    $rule =~ s/\band\b/&&/;
+                    $rule =~ s/$_/\$$_/g for qw(length status content url);
                     next if ($rule =~ /content/ && !$content);
                     if (eval($rule))
                     {
@@ -109,9 +110,12 @@ Options:
 
 FILTERS:
 
-        A filter is a collection of semicolon-separated valid Perl expressions to 
+        A filter is a collection of semicolon-separated expressions that are
     be tested against the result of each request. When used, only the requests 
-    matching with the filter will be displayed.
+    matching with at least one the filters will be displayed. The filters can 
+    contain basic comparissions and even Perl regular expressions. Any number of
+    expressions can be combined using the logic operators 'or' and 'and' to form
+    a filter and multiple filters can be joined into one by using a semicolon.
         Filters can be used to validate the following fields of a response:
         
         status  - the status code of the response (200, 301, 404, etc.)
@@ -120,9 +124,9 @@ FILTERS:
         url     - the url that provided the response
 
     Examples of filters:
-        'url =~ /.txt\$/ && status != 200'
+        'url =~ /.txt\$/ and status != 200'
         'status == 200; content =~ /admin/i'
-        'status > 300 && status < 400; status == 200'
+        'status > 300 and status < 400 or status == 200'
 
 HELP
     exit 0;
@@ -132,7 +136,7 @@ sub main
 {
     my ($timeout, $tasks, $json, $delay) = (10, 10, undef, 0);
     my ($useragent, $filter, $payload) = ("fuzzer.pl/0.1", "", "");
-    my $methods = "GET,POST,PUT,DELETE,HEAD,TRACE";
+    my $methods = "GET,POST,PUT,DELETE,HEAD,TRACE,*";
     my %headers;
     my $wordlist;
 
