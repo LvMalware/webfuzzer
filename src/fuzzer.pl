@@ -8,8 +8,6 @@ use HTTP::Tiny;
 use Getopt::Long qw(:config no_ignore_case);
 use Thread::Queue;
 
-my $print_lock :shared;
-
 sub version
 {
     print "$0 v0.1 (Cockroach)\n";
@@ -17,6 +15,10 @@ sub version
 }
 
 my $wordlist_queue = Thread::Queue->new();
+my $backup_queue = Thread::Queue->new();
+my $recursive = 1;
+my $add_dir_lock :shared;
+my @target_dirs :shared;
 
 sub fuzzer_loop
 {
@@ -30,15 +32,26 @@ sub fuzzer_loop
     };
     while (defined(my $resource = $wordlist_queue->dequeue()))
     {
+        $backup_queue->enqueue($resource);
+
+        my $full_path = $target . "/" . $resource;
+        substr($full_path, 9) =~ s/\/\/+/\//g;
+
         for my $met (@req_methods)
         {
-            my $response = $http->request($met, $target.$resource, $options);
+            my $response = $http->request($met, $full_path, $options);
             my $status   = $response->{status};
             my $content  = $response->{content};
             my $length   = length($content) || 'null';
             my $url      = $response->{url};
             my $reason   = $response->{reason};
-            
+
+            if ($recursive && $status == 200 && $met eq 'GET' && $url =~ /\/$/)
+            {
+                lock($add_dir_lock);
+                push @target_dirs, $full_path;
+            }
+
             if ($filter)
             {
                 my $match = 0;
@@ -98,11 +111,13 @@ Options:
     -u, --useragent         A User-Agent string (default: fuzzer.pl/0.1)
     -d, --delay             Interval in seconds to wait between requests
     -j, --json              Print each result as a JSON
+    -r, --recursive         Go recursive into directories (default)
     -w, --wordlist          The wordlist of paths to request
     -H, --headers           Define a header to be sent
     -p, --payload           Send some custom data to the server
     -f, --filter            Only display results matching with a filter
                             (See FILTERS below)
+    --norecursive           Do not follow directories recursively
 
     Examples:
         ./fuzzer.pl -w wordlist.txt -T 16 http://example.com
@@ -153,6 +168,7 @@ sub main
         "m|methods=s"   => \$methods,
         "H|headers=s%"  => \%headers,
         "w|wordlist=s"  => \$wordlist,
+        "r|recursive!"  => \$recursive,
         "u|useragent=s" => \$useragent,
     ) || help();
 
@@ -160,9 +176,7 @@ sub main
     my $target = shift @ARGV;
     die "[!] No target specified!" unless $target;
     die "[!] No wordlist specified!" unless $wordlist;
-
-    $target .= "/" unless $target =~ /\/$/;
-
+    push @target_dirs, $target;
     open my $list, "<$wordlist" || die "[!] Can't open $wordlist for reading";
     while (<$list>)
     {
@@ -172,12 +186,20 @@ sub main
 
     $wordlist_queue->end();
 
-    my @threads = map {
-        threads->create('fuzzer_loop', $_, $target, \%headers, $methods,
-            $timeout, $filter, $json, $useragent, $payload, $delay
-        )
-    } 0 .. $tasks - 1;
-    (async { foreach (@threads) { $_->join() } })->join();
+    while (@target_dirs)
+    {
+        $target = shift @target_dirs;
+        my @threads = map {
+            threads->create('fuzzer_loop', $_, $target, \%headers, $methods,
+                $timeout, $filter, $json, $useragent, $payload, $delay
+            )
+        } 0 .. $tasks - 1;
+        (async { foreach (@threads) { $_->join() } })->join();
+        while (threads->list(threads::running) > 0) {};
+        $backup_queue->end();
+        $wordlist_queue = $backup_queue;
+        $backup_queue = Thread::Queue->new();
+    }
     0;
 }
 
