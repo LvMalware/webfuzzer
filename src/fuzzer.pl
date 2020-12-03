@@ -85,8 +85,8 @@ sub fuzzer_loop
             }
             else
             {
-                print "[THREAD $thr] URL: $url | method: " .
-                "$met | status: $status | reason: $reason | length: $length\n";
+                print "[$status] URL: $url | method: $met | reason: $reason" .
+                " | length: $length\n";
             }
             sleep($delay);
         }
@@ -189,13 +189,18 @@ sub main
     while (@target_dirs)
     {
         $target = shift @target_dirs;
-        my @threads = map {
-            threads->create('fuzzer_loop', $_, $target, \%headers, $methods,
-                $timeout, $filter, $json, $useragent, $payload, $delay
-            )
-        } 0 .. $tasks - 1;
-        (async { foreach (@threads) { $_->join() } })->join();
+        #threads are created asynchronously!
+        async {
+            foreach (0 .. $tasks - 1)
+            {
+                threads->create('fuzzer_loop', $_, $target, \%headers, $methods,
+                    $timeout, $filter, $json, $useragent, $payload, $delay
+                );
+            }
+        };
+        #a busy loop can be bad, but hell... we would need to  wait anyway
         while (threads->list(threads::running) > 0) {};
+        map { $_->join() } threads->list(threads::all);
         $backup_queue->end();
         $wordlist_queue = $backup_queue;
         $backup_queue = Thread::Queue->new();
