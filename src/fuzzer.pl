@@ -10,11 +10,12 @@ use Thread::Queue;
 
 sub version
 {
-    print "$0 v0.1 (Cockroach)\n";
+    print "$0 v0.2 (Cockroach)\n";
     exit 0;
 }
 
 my $wordlist_queue = Thread::Queue->new();
+my $backup_queue_lock :shared;
 my $backup_queue = Thread::Queue->new();
 my $recursive = 1;
 my $add_dir_lock :shared;
@@ -32,8 +33,14 @@ sub fuzzer_loop
     };
     while (defined(my $resource = $wordlist_queue->dequeue()))
     {
-        $backup_queue->enqueue($resource);
-
+        next unless $resource;
+        
+        LOCKED_BLOCK: {
+            #apparently, enqueue() may not be an atomic operation, so... lock
+            lock($backup_queue_lock);
+            $backup_queue->enqueue($resource);
+        }
+        
         my $full_path = $target . "/" . $resource;
         substr($full_path, 9) =~ s/\/\/+/\//g;
 
@@ -150,7 +157,7 @@ HELP
 
 sub main
 {
-    my ($timeout, $tasks, $json, $delay) = (10, 10, undef, 0);
+    my ($timeout, $tasks, $json, $delay) = (5, 10, undef, 0);
     my ($useragent, $filter, $payload) = ("fuzzer.pl/0.1", "", "");
     my $methods = "GET,POST,PUT,DELETE,HEAD,TRACE,*";
     my %headers;
@@ -172,20 +179,20 @@ sub main
         "u|useragent=s" => \$useragent,
     ) || help();
 
-    
     my $target = shift @ARGV;
     die "[!] No target specified!" unless $target;
     die "[!] No wordlist specified!" unless $wordlist;
-    push @target_dirs, $target;
+
     open my $list, "<$wordlist" || die "[!] Can't open $wordlist for reading";
     while (<$list>)
     {
         chomp;
         $wordlist_queue->enqueue($_);
     }
-
     $wordlist_queue->end();
 
+    push @target_dirs, $target;
+    
     while (@target_dirs)
     {
         $target = shift @target_dirs;
