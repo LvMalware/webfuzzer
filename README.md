@@ -3,7 +3,7 @@
 
 fuzzer.pl is a simple and fast web fuzzer with support for multiple threads and the use of filters.
 
-This is the version 0.1, nicknamed 'Cockroach' (the versions will be named after bugs, as it will probably contain a lot of them).
+This is the version 0.2, nicknamed 'Cockroach' (the versions will be named after bugs, as it will probably contain a lot of them).
 
 
 
@@ -22,11 +22,13 @@ Options:
     -u, --useragent         A User-Agent string (default: fuzzer.pl/0.1)
     -d, --delay             Interval in seconds to wait between requests
     -j, --json              Print each result as a JSON
+    -r, --recursive         Go recursive into directories (default)
     -w, --wordlist          The wordlist of paths to request
     -H, --headers           Define a header to be sent
     -p, --payload           Send some custom data to the server
     -f, --filter            Only display results matching with a filter
                             (See FILTERS below)
+    --norecursive           Do not follow directories recursively
 
 ```
 
@@ -50,8 +52,8 @@ Options:
     contain basic comparissions and even Perl regular expressions. Any number of
     expressions can be combined using the logic operators 'or' and 'and' to form
     a filter and multiple filters can be joined into one by using a semicolon.
-    	Filters can be used to validate the following fields of a response:
-    	
+    Filters can be used to validate the following fields of a response:
+    
 -  status  - the status code of the response (200, 301, 404, etc.)
 -  content - the content returned as response by the server
 -  length  - the binary length of the content (can have the value 'null')
