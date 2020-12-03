@@ -71,23 +71,23 @@ sub fuzzer_loop
                 }
                 next unless $match == 1;
             }
-            
+            my $result;
             if ($json)
             {
-                my $result = to_json({
+                $result = to_json({
                     status   => $status,
                     length   => $length,
                     reason   => $reason,
                     url      => $url,
                     method   => $met,
                 });
-                print $result . "\n";
             }
             else
             {
-                print "[$status] URL: $url | method: $met | reason: $reason" .
-                " | length: $length\n";
+                $result = "[$status] URL: $url | method: $met | reason: " .
+                "$reason | length: $length";
             }
+            print $result . "\n";
             sleep($delay);
         }
     }
