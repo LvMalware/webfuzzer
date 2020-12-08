@@ -5,8 +5,8 @@ use strict;
 use threads;
 use warnings;
 use HTTP::Tiny;
-use Getopt::Long qw(:config no_ignore_case);
 use Thread::Queue;
+use Getopt::Long qw(:config no_ignore_case);
 
 sub version
 {
@@ -34,12 +34,9 @@ sub fuzzer_loop
     while (defined(my $resource = $wordlist_queue->dequeue()))
     {
         next unless $resource;
-        
-        LOCKED_BLOCK: {
-            #apparently, enqueue() may not be an atomic operation, so... lock
-            lock($backup_queue_lock);
-            $backup_queue->enqueue($resource);
-        }
+
+        #yep, it seems that enqueue() does not need a lock...
+        $backup_queue->enqueue($resource);
         
         my $full_path = $target . "/" . $resource;
         substr($full_path, 9) =~ s/\/\/+/\//g;
@@ -70,6 +67,8 @@ sub fuzzer_loop
                     $rule =~ s/\band\b/&&/;
                     $rule =~ s/$_/\$$_/g for qw(length status content url);
                     next if ($rule =~ /content/ && !$content);
+                    #I know that using eval() to execute some user input
+                    #is bad, but let's trust them this time...
                     if (eval($rule))
                     {
                         $match = 1;
@@ -81,7 +80,7 @@ sub fuzzer_loop
             my $result;
             if ($json)
             {
-                $result = to_json({
+                $result = encode_json({
                     status   => $status,
                     length   => $length,
                     reason   => $reason,
@@ -120,7 +119,7 @@ Options:
     -j, --json              Print each result as a JSON
     -r, --recursive         Go recursive into directories (default)
     -w, --wordlist          The wordlist of paths to request
-    -H, --headers           Define a header to be sent
+    -H, --headers           Define a header to be sent (header=value)
     -p, --payload           Send some custom data to the server
     -f, --filter            Only display results matching with a filter
                             (See FILTERS below)
@@ -130,6 +129,7 @@ Options:
         ./fuzzer.pl -w wordlist.txt -T 16 http://example.com
         ./fuzzer.pl -w wordlist.txt -d 2 -u "Googlebot/1.0" https://example.com
         ./fuzzer.pl -w wordlist.txt -f 'content=~/admin/i' https://example.com
+        ./fuzzer.pl -w wordlist.txt -H DNT=1 http://example.com
 
 FILTERS:
 
