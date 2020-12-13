@@ -15,11 +15,10 @@ sub version
 }
 
 my $wordlist_queue = Thread::Queue->new();
-my $backup_queue_lock :shared;
 my $backup_queue = Thread::Queue->new();
-my $recursive = 1;
 my $add_dir_lock :shared;
 my @target_dirs :shared;
+my $recursive = 0;
 
 sub fuzzer_loop
 {
@@ -31,14 +30,14 @@ sub fuzzer_loop
         headers => $headers,
         content => $payload,
     };
+
     while (defined(my $resource = $wordlist_queue->dequeue()))
     {
         next unless $resource;
 
-        #yep, it seems that enqueue() does not need a lock...
         $backup_queue->enqueue($resource);
         
-        my $full_path = $target . "/" . $resource;
+        my $full_path = $target . $resource;
         substr($full_path, 9) =~ s/\/\/+/\//g;
 
         for my $met (@req_methods)
@@ -59,16 +58,11 @@ sub fuzzer_loop
             if ($filter)
             {
                 my $match = 0;
-                #filter format example: length>0 and status=200;status == 301
-                #params: length, status, content, url
                 for my $rule (split /;/, $filter)
                 {
-                    $rule =~ s/\bor\b/\|\|/;
-                    $rule =~ s/\band\b/&&/;
                     $rule =~ s/$_/\$$_/g for qw(length status content url);
                     next if ($rule =~ /content/ && !$content);
-                    #I know that using eval() to execute some user input
-                    #is bad, but let's trust them this time...
+                    # NEVER use eval() like this in production code
                     if (eval($rule))
                     {
                         $match = 1;
@@ -77,23 +71,22 @@ sub fuzzer_loop
                 }
                 next unless $match == 1;
             }
-            my $result;
+
             if ($json)
             {
-                $result = encode_json({
+                print encode_json({
                     status   => $status,
                     length   => $length,
                     reason   => $reason,
                     url      => $url,
                     method   => $met,
-                });
+                }) . "\n";
             }
             else
             {
-                $result = "[$status] URL: $url | method: $met | reason: " .
-                "$reason | length: $length";
+                print "[$status] URL: $url | Method: $met | Reason: " .
+                      "$reason | Length: $length\n";
             }
-            print $result . "\n";
             sleep($delay);
         }
     }
@@ -117,13 +110,13 @@ Options:
     -u, --useragent         A User-Agent string (default: fuzzer.pl/0.1)
     -d, --delay             Interval in seconds to wait between requests
     -j, --json              Print each result as a JSON
-    -r, --recursive         Go recursive into directories (default)
+    -r, --recursive         Go recursive into directories
     -w, --wordlist          The wordlist of paths to request
     -H, --headers           Define a header to be sent (header=value)
     -p, --payload           Send some custom data to the server
     -f, --filter            Only display results matching with a filter
                             (See FILTERS below)
-    --norecursive           Do not follow directories recursively
+    --norecursive           Do not follow directories recursively (default)
 
     Examples:
         ./fuzzer.pl -w wordlist.txt -T 16 http://example.com
@@ -136,9 +129,9 @@ FILTERS:
         A filter is a collection of semicolon-separated expressions that are
     tested against the result of each request. When used, only the requests 
     matching with at least one the filters will be displayed. The filters can 
-    contain basic comparissions and even Perl regular expressions. Any number of
-    expressions can be combined using the logic operators 'or' and 'and' to form
-    a filter and multiple filters can be joined into one by using a semicolon.
+    contain basic comparissions and even Perl regular expressions. Any number
+    of expressions can be combined using the logic operators 'or' and 'and' to
+    form a filter and multiple filters can be joined into one using semicolon.
         Filters can be used to validate the following fields of a response:
         
         status  - the status code of the response (200, 301, 404, etc.)
@@ -158,8 +151,8 @@ HELP
 sub main
 {
     my ($timeout, $tasks, $json, $delay) = (5, 10, undef, 0);
-    my ($useragent, $filter, $payload) = ("fuzzer.pl/0.1", "", "");
-    my $methods = "GET,POST,PUT,DELETE,HEAD,TRACE,*";
+    my ($useragent, $filter, $payload) = ("fuzzer.pl/0.2", "", "");
+    my $methods = "GET,POST,PUT,DELETE,HEAD,TRACE,PATCH,OPTIONS,PUSH";
     my %headers;
     my $wordlist;
 
@@ -183,6 +176,8 @@ sub main
     die "[!] No target specified!" unless $target;
     die "[!] No wordlist specified!" unless $wordlist;
 
+    $target .= "/" if ($target =~ tr/\///) == 2;
+
     open my $list, "<$wordlist" || die "[!] Can't open $wordlist for reading";
     while (<$list>)
     {
@@ -196,7 +191,6 @@ sub main
     while (@target_dirs)
     {
         $target = shift @target_dirs;
-        #threads are created asynchronously!
         async {
             foreach (0 .. $tasks - 1)
             {

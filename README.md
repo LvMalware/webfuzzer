@@ -22,13 +22,13 @@ Options:
     -u, --useragent         A User-Agent string (default: fuzzer.pl/0.1)
     -d, --delay             Interval in seconds to wait between requests
     -j, --json              Print each result as a JSON
-    -r, --recursive         Go recursive into directories (default)
+    -r, --recursive         Go recursive into directories
     -w, --wordlist          The wordlist of paths to request
     -H, --headers           Define a header to be sent
     -p, --payload           Send some custom data to the server
     -f, --filter            Only display results matching with a filter
                             (See FILTERS below)
-    --norecursive           Do not follow directories recursively
+    --norecursive           Do not follow directories recursively (default)
 
 ```
 
@@ -42,6 +42,9 @@ Options:
 ```
 ```
 ./fuzzer.pl -w wordlist.txt -f 'content=~/admin/i' https://example.com
+```
+```
+./fuzzer.pl -w wordlist.txt -H DNT=1 http://example.com
 ```
 
 ## FILTERS
