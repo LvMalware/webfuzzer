@@ -206,7 +206,7 @@ sub proxy_test
         unless ($curl->perform())
         {
             my $info = decode_json($response);
-            print "Proxy IP: $real_ip\n";
+            print "Proxy IP: $info->{ip}\n";
             print "Country: $info->{country} ($info->{cc})\n";
             if ($info->{ip} eq $real_ip)
             {
