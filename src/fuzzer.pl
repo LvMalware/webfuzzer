@@ -33,7 +33,7 @@ sub fuzzer_loop
     $curl->setopt(CURLOPT_USERAGENT, $ua);
     $curl->setopt(CURLOPT_TIMEOUT, $timeout);
     $curl->setopt(CURLOPT_FOLLOWLOCATION, 1);
-    $curl->setopt(CURLOPT_HTTPHEADER, $headers)
+    $curl->setopt(CURLOPT_HTTPHEADER, $headers);
     $curl->setopt(CURLOPT_READDATA, \$payload) if $payload;
     
     my @req_methods = split /,/, $methods;
