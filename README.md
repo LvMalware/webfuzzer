@@ -29,6 +29,8 @@ Options:
     -f, --filter            Only display results matching with a filter
                             (See FILTERS below)
     --norecursive           Do not follow directories recursively (default)
+    --fuzzme                Enable support for parameter fuzzing
+                            (See PARAMETER FUZZING below)
 
 ```
 
@@ -66,6 +68,21 @@ Options:
         'url =~ /.txt$/ and status != 200'
         'status == 200; content =~ /admin/i'
         'status > 300 and status < 400 or status == 200'
+
+## Parameter Fuzzing
+
+
+   When enabled, intead of appending the lines of the wordlist to the url
+    to try finding valdid endpoints on the web application, these lines will be
+    used to replace each occurency of the text %FUZZME% on the url.
+        
+   This can be used to test multiple payloads for parameters of the target
+    url or to brute force certain parts of web APIs, such as user IDs.
+    
+###    Examples:
+
+        ./fuzzer.pl -w sqli.txt --fuzzme 
+        https://target.site/page.php?id=%FUZZME% -f 'content =~ /SQL/'
 
 ## Meta
 
