@@ -37,7 +37,7 @@ sub fuzzer_loop
 
         $backup_queue->enqueue($resource);
         my $full_path = $fuzzme ? $target =~ s/\%FUZZME\%/$resource/r :
-            substr($target . '/' . $resource, 9) =~ s/\/\/+/\//gr;
+            ($target . '/' . $resource) =~ s/([^:])\/\/+/$1\//gr;
         for my $met (@req_methods)
         {
             my $response = $http->request($met, $full_path, $options);
