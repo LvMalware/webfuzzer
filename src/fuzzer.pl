@@ -24,8 +24,11 @@ sub fuzzer_loop
 {
     my ($thr, $target, $headers, $methods, $timeout,
         $filter, $json, $ua, $payload, $delay, $fuzzme) = @_;
-    my $http = HTTP::Tiny->new('agent' => $ua, timeout => $timeout);
-    my @req_methods = split /,/, $methods;
+    
+    my $http = HTTP::Tiny->new( timeout => $timeout );
+    
+    my @req_methods = map { uc } split /,/, $methods;
+    
     my $options = {
         headers => $headers,
         content => $payload,
@@ -34,12 +37,15 @@ sub fuzzer_loop
     while (defined(my $resource = $wordlist_queue->dequeue()))
     {
         next unless $resource;
-
         $backup_queue->enqueue($resource);
+
         my $full_path = $fuzzme ? $target =~ s/\%FUZZME\%/$resource/r :
             ($target . '/' . $resource) =~ s/([^:])\/\/+/$1\//gr;
+        
         for my $met (@req_methods)
         {
+            $http->agent($ua->[rand @{$ua}]);
+
             my $response = $http->request($met, $full_path, $options);
             my $status   = $response->{status};
             my $content  = $response->{content};
@@ -82,7 +88,7 @@ sub fuzzer_loop
             }
             else
             {
-                print "[$status] URL: $url | Method: $met | Reason: " .
+                print "[$status] $met    $url | Reason: " .
                       "$reason | Length: $length\n";
             }
             sleep($delay);
@@ -106,6 +112,7 @@ Options:
     -t, --timeout           Timeout for each request
     -m, --methods           A comma-separated list of HTTP methods to request
     -u, --useragent         A User-Agent string (default: fuzzer.pl/0.1)
+    -R, --randomagent       Select a random user agent for each request
     -d, --delay             Interval in seconds to wait between requests
     -j, --json              Print each result as a JSON
     -r, --recursive         Go recursive into directories
@@ -163,7 +170,7 @@ HELP
 sub main
 {
     my ($timeout, $tasks, $json, $delay) = (5, 10, undef, 0);
-    my $fuzzme;
+    my ($randomagent, $fuzzme, @useragent_list);
     my ($useragent, $filter, $payload) = ("fuzzer.pl/0.2", "", "");
     my $methods = "GET,POST,PUT,DELETE,HEAD,TRACE,PATCH,OPTIONS,PUSH";
     my %headers;
@@ -184,6 +191,7 @@ sub main
         "w|wordlist=s"  => \$wordlist,
         "r|recursive!"  => \$recursive,
         "u|useragent=s" => \$useragent,
+        "R|randomagent" => \$randomagent,
     ) || help();
 
     my $target = shift @ARGV;
@@ -197,6 +205,17 @@ sub main
     else
     {
         $target .= "/" unless ($target =~ /\/$/);
+    }
+
+    if ($useragent)
+    {
+        push @useragent_list, $useragent;
+    }
+
+    if ($randomagent)
+    {
+        open(my $ua, "<user-agents.txt") || die "[!] $0: $!";
+        push @useragent_list, map { chomp; $_ } <$ua>;
     }
 
     open my $list, "<$wordlist" || die "[!] Can't open $wordlist for reading";
@@ -216,7 +235,8 @@ sub main
             foreach (0 .. $tasks - 1)
             {
                 threads->create('fuzzer_loop', $_, $target, \%headers, $methods,
-                    $timeout, $filter, $json, $useragent, $payload, $delay, $fuzzme
+                    $timeout, $filter, $json, \@useragent_list, $payload, $delay,
+                    $fuzzme,
                 );
             }
         };

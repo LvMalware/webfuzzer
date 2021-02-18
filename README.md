@@ -20,6 +20,7 @@ Options:
     -t, --timeout           Timeout for each request
     -m, --methods           A comma-separated list of HTTP methods to request
     -u, --useragent         A User-Agent string (default: fuzzer.pl/0.1)
+    -R, --randomagent       Select a random user agent for each request
     -d, --delay             Interval in seconds to wait between requests
     -j, --json              Print each result as a JSON
     -r, --recursive         Go recursive into directories
